@@ -1,0 +1,19 @@
+{
+  "name": "quick-types.js",
+  "version": "0.0.1",
+  "description": "Generates super fast type constructors from a schema",
+  "main": "quick-types.js",
+  "scripts": {
+    "test": "node ./test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/matthewrobb/quick-types.js.git"
+  },
+  "author": "Matthew Robb",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/matthewrobb/quick-types.js/issues"
+  },
+  "homepage": "https://github.com/matthewrobb/quick-types.js"
+}
