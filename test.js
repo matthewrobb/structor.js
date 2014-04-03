@@ -1,48 +1,51 @@
-var structor = require("./structor");
+var Structs = require("./structor").extend();
 
-structor.defineField("string", function(info, $key) {
-    var $string = $[ structor.value(info.from || info.key) ];
+Structs.defineProperty("string", function(schema, $key) {
+    var $string = $(/* this.value(schema.from || schema.key) */);
     
     if(typeof $string !== "string") {
         $string = "" + $string;
-        $[ structor.required(info) ]
+        $(/* this.required(schema) */);
     }
     
     this.$key = $string;
 });
 
-structor.defineField("number", function(info, $key) {
-    var $number = $[ structor.value(info.from || info.key) ];
+Structs.defineProperty("number", function(schema, $key) {
+    var $number = $(/* this.value(schema.from || schema.key) */);
     
     if(typeof $number !== "number") {
         $number = $number|0;
         
-        $[ structor.required(info) ]
+        $(/* this.required(schema) */);
     }
     
     this.$key = $number;
 });
 
-structor.defineField("date", function($key, $value) {
-    var d = $value, d = d && d.split("-");
-    
-    if(d) {
-        this.$key = new Date(d[2], d[0], d[1]);
+Structs.defineProperty("date", function($key, $value) {
+    var $date = $(/* this.value(schema.from || schema.key) */),
+        $date = Date.parse($date);
+
+    if(isNaN($date)) {
+        $(/* this.required(schema) */);
     }
+
+    this.$key = new Date($date);
 });
 
-var Thing = structor.create("Thing", {
+var Thing = Structs.defineStruct("Thing", {
     greeting : { type : "string" },
     id       : { type : "number" },
     guid     : { type : "string", required : true },
-    created  : { type : "date" },
+    created  : { type : "date", required : true },
     sup      : { type : "string", from : "sub.sup" }
 });
 
-var thing = new Thing({
+var thing = Structs.create("Thing", {
     greeting : "hello",
     id       : "123",
-    created  : "01-01-2014",
+    created  : "01-012014",
     sub : {
         sup : "heyo"
     }
@@ -50,4 +53,4 @@ var thing = new Thing({
 
 console.log(Thing);
 console.log(thing);
-console.log(Object.keys(thing));
+console.log(thing.invalid);

@@ -1,88 +1,137 @@
 (function(structor) {
-    structor.fields = {};
 
-    structor.create = function(name, def) {
-        var lines = [], field, src;
-        
-        for(var key in def) {
-            field = structor.fields[def[key].type];
-            if(field) {
-                lines.push(field(key, def));
+    var undefined;
+
+    structor.mixin = function(r, s) {
+        var target = arguments.length === 2 ? r : this,
+            source = arguments.length === 2 ? s : r,
+            name, desc;
+
+        if(source) for(name in source) {
+            desc = Object.getOwnPropertyDescriptor(source, name);
+            desc && Object.defineProperty(target, name, desc);
+        }
+
+        return target;
+    };
+
+    structor.extend = function(extension) {
+        var ns = Object.create(this);
+
+        ns.STRUCT_TYPES   = Object.create(this.STRUCT_TYPES);
+        ns.PROPERTY_TYPES = Object.create(this.PROPERTY_TYPES);
+
+        return extension ? ns.mixin(extension) : ns;
+    };
+
+    structor.mixin({
+        STRUCT_TYPES    : {},
+        PROPERTY_TYPES  : {},
+        DATA_IDENTIFIER : "data",
+
+        create : function(type, data) {
+            var struct = this.STRUCT_TYPES[type];
+            return (struct && new struct(data)) || undefined;
+        },
+
+        //
+        defineStruct : function(name, schema) {
+            var lines = [],
+                fieldTpl,
+                keyName,
+                src;
+            
+            //
+            for(keyName in schema) {
+                fieldTpl = this.PROPERTY_TYPES[schema[keyName].type];
+
+                if(fieldTpl) {
+                    lines.push(fieldTpl(keyName, schema));
+                }
             }
-            field = null;
-        }
-        
-        src = structor.wrap({
-            name  : name,
-            args  : structor.dataIdent,
-            valid : "$valid",
-            body  : lines.join("")
-        });
-        
-        return (new Function(src))();
-    }
-
-    structor.template = function(_$fn) {
-        var _$tpl = _$fn.toString(),
-            _$tpl = _$tpl.slice(_$tpl.indexOf("{") + 1, -1);
-        
-        return function(info) {
-            return _$tpl.replace(/(\$\[)([^]*?)(\])/g, function(_$1, _$2, _$3) {
-                return eval(_$3);
-            }).replace(/(\$)([\d\w]*)/g, function(match, tpl, key) {
-                return info && key in info ? info[key] : key;
-            });
-        };
-    };
-    
-    structor.wrap = structor.template(function($name, $args, $body) {
-        function $name($args) {
-            var undefined;
-
-            Object.defineProperty(this, "invalid", {
-                value    : [],
-                writable : true
-            });
             
-            $body
+            //
+            src = this.wrap({
+                name  : name,
+                args  : this.DATA_IDENTIFIER,
+                valid : "$valid",
+                body  : lines.join("")
+            });
+
+            //
+            return this.STRUCT_TYPES[name] = (new Function(src))();
+        },
+    
+        //
+        template : function(_$fn) {
+            var _$self = this,
+                _$tpl  = _$fn.toString(),
+                _$tpl  = _$tpl.slice(_$tpl.indexOf("{") + 1, -1);
+            
+            return function(schema) {
+                return _$tpl
+                    .replace(/(\$\(\/\*)([^]*?)(\*\/\))/g, function(_$1, _$2, _$3) {
+                        return (new Function(["schema"], "return (" + _$3 + ")")).call(_$self, schema)
+                    })
+                    .replace(/(\$)([\d\w]*)/g, function(match, tpl, key) {
+                        return schema && key in schema ? schema[key] : key;
+                    });
+            };
         }
-        
-        return $name;
     });
-    
-    structor.dataIdent = "data";
-    structor.value = function(raw) {
-        var value = [];
-        
-        raw.split(".").reduce(function(prev, next) {
-            prev.push(next);
-            value.push(prev.join("."));
-            return prev;
-        }, [ structor.dataIdent ]);
-        
-        return "((" + value.join(" && ") + ") || undefined)";
-    };
-    
-    structor.required = function(info) {
-        return !info.required ? "" : structor.template(function() {
-            this.$invalid.push("$key");
-        })(info);
-    };
-    
-    
-    structor.defineField = function(name, fn) {
-        var tpl = structor.template(fn);
-        
-        structor.fields[name] = function(key, def) {
-            var info = def[key];
+
+    structor.mixin({
+
+        //
+        wrap : structor.template(function($name, $args, $body) {
+            function $name($args) {
+                var undefined;
+
+                Object.defineProperty(this, "invalid", {
+                    value    : [],
+                    writable : true
+                });
+                
+                $body
+            }
             
-            info.key      = info.key || key;
-            info[name]    = "$" + info.key;
-            info.value    = structor.value(info.from || key);
-            info.required = !!info.required;
+            return $name;
+        }),
+
+        //
+        value : function(raw) {
+            var value = [];
             
-            return tpl(info);
-        };
-    };
+            raw.split(".").reduce(function(prev, next) {
+                prev.push(next);
+                value.push(prev.join("."));
+                return prev;
+            }, [ this.DATA_IDENTIFIER ]);
+            
+            return "((" + value.join(" && ") + ") || undefined)";
+        },
+        
+        //
+        required : function(schema) {
+            return !schema.required ? "" : this.template(function() {
+                this.$invalid.push("$key");
+            })(schema);
+        },
+        
+        //
+        defineProperty : function(name, fn) {
+            var tpl = this.template(fn);
+            
+            this.PROPERTY_TYPES[name] = function(key, def) {
+                var schema = def[key];
+                
+                schema.key      = schema.key || key;
+                schema[name]    = "$" + schema.key;
+                
+                return tpl(schema);
+            };
+        }
+
+    });
 
 }( (module && module.exports) || (window.structor = {}) ));
