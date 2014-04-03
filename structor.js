@@ -1,19 +1,20 @@
-(function(global) {
+(function(structor) {
+    structor.fields = {};
 
-    function Struct(name, def) {
+    structor.create = function(name, def) {
         var lines = [], field, src;
         
         for(var key in def) {
-            field = Struct.fields[def[key].type];
+            field = structor.fields[def[key].type];
             if(field) {
                 lines.push(field(key, def));
             }
             field = null;
         }
         
-        src = Struct.wrap({
+        src = structor.wrap({
             name  : name,
-            args  : Struct.dataIdent,
+            args  : structor.dataIdent,
             valid : "$valid",
             body  : lines.join("")
         });
@@ -21,7 +22,7 @@
         return (new Function(src))();
     }
 
-    Struct.template = function(_$fn) {
+    structor.template = function(_$fn) {
         var _$tpl = _$fn.toString(),
             _$tpl = _$tpl.slice(_$tpl.indexOf("{") + 1, -1);
         
@@ -34,7 +35,7 @@
         };
     };
     
-    Struct.wrap = Struct.template(function($name, $args, $body) {
+    structor.wrap = structor.template(function($name, $args, $body) {
         function $name($args) {
             var undefined;
 
@@ -49,45 +50,39 @@
         return $name;
     });
     
-    Struct.dataIdent = "data";
-    Struct.value = function(raw) {
+    structor.dataIdent = "data";
+    structor.value = function(raw) {
         var value = [];
         
         raw.split(".").reduce(function(prev, next) {
             prev.push(next);
             value.push(prev.join("."));
             return prev;
-        }, [ Struct.dataIdent ]);
+        }, [ structor.dataIdent ]);
         
         return "((" + value.join(" && ") + ") || undefined)";
     };
     
-    Struct.required = function(info) {
-        return !info.required ? "" : Struct.template(function() {
+    structor.required = function(info) {
+        return !info.required ? "" : structor.template(function() {
             this.$invalid.push("$key");
         })(info);
     };
     
-    Struct.fields = {};
-    Struct.defineField = function(name, fn) {
-        var tpl = Struct.template(fn);
+    
+    structor.defineField = function(name, fn) {
+        var tpl = structor.template(fn);
         
-        Struct.fields[name] = function(key, def) {
+        structor.fields[name] = function(key, def) {
             var info = def[key];
             
             info.key      = info.key || key;
             info[name]    = "$" + info.key;
-            info.value    = Struct.value(info.from || key);
+            info.value    = structor.value(info.from || key);
             info.required = !!info.required;
             
             return tpl(info);
         };
     };
 
-    if(module && module.exports) {
-        module.exports = Struct;
-    } else {
-        global.Struct = Struct;
-    }
-
-}(this));
+}( (module && module.exports) || (window.structor = {}) ));

@@ -1,29 +1,29 @@
-var Struct = require("./quick-types");
+var structor = require("./structor");
 
-Struct.defineField("string", function(info, $key) {
-    var $string = $[ Struct.value(info.from || info.key) ];
+structor.defineField("string", function(info, $key) {
+    var $string = $[ structor.value(info.from || info.key) ];
     
     if(typeof $string !== "string") {
         $string = "" + $string;
-        $[ Struct.required(info) ]
+        $[ structor.required(info) ]
     }
     
     this.$key = $string;
 });
 
-Struct.defineField("number", function(info, $key) {
-    var $number = $[ Struct.value(info.from || info.key) ];
+structor.defineField("number", function(info, $key) {
+    var $number = $[ structor.value(info.from || info.key) ];
     
     if(typeof $number !== "number") {
         $number = $number|0;
         
-        $[ Struct.required(info) ]
+        $[ structor.required(info) ]
     }
     
     this.$key = $number;
 });
 
-Struct.defineField("date", function($key, $value) {
+structor.defineField("date", function($key, $value) {
     var d = $value, d = d && d.split("-");
     
     if(d) {
@@ -31,7 +31,7 @@ Struct.defineField("date", function($key, $value) {
     }
 });
 
-var Thing = Struct("Thing", {
+var Thing = structor.create("Thing", {
     greeting : { type : "string" },
     id       : { type : "number" },
     guid     : { type : "string", required : true },
@@ -50,4 +50,4 @@ var thing = new Thing({
 
 console.log(Thing);
 console.log(thing);
-console.log(Object.keys(thing))
+console.log(Object.keys(thing));

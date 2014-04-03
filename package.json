@@ -1,19 +1,19 @@
 {
-  "name": "quick-types.js",
+  "name": "structor.js",
   "version": "0.0.1",
   "description": "Generates super fast type constructors from a schema",
-  "main": "quick-types.js",
+  "main": "structor.js",
   "scripts": {
     "test": "node ./test.js"
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/matthewrobb/quick-types.js.git"
+    "url": "git://github.com/matthewrobb/structor.js.git"
   },
   "author": "Matthew Robb",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/matthewrobb/quick-types.js/issues"
+    "url": "https://github.com/matthewrobb/structor.js/issues"
   },
-  "homepage": "https://github.com/matthewrobb/quick-types.js"
+  "homepage": "https://github.com/matthewrobb/structor.js"
 }
