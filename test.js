@@ -1,38 +1,64 @@
-var Structs = require("./structor").extend();
+var Structs = require("./structor").extend({
 
-Structs.defineProperty("string", function(schema, $key) {
-    var $string = $(/* this.value(schema.from || schema.key) */);
+});
+
+Structs.registerHelper("required", function(schema, block) {
+    return "required" in schema && schema.required ? block(schema) : "";
+});
+
+Structs.registerHelper("value", function(evaluate) {
+    var raw   = evaluate(),
+        value = [];
+    
+    raw.split(".").reduce(function(prev, next) {
+        prev.push(next);
+        value.push(prev.join("."));
+        return prev;
+    }, [ this.options.data_ident ]);
+    
+    return "((" + value.join(" && ") + ") || undefined)";
+});
+
+/*Structs.defineProperty("string", function(data) {
+    var $string = $value(data.from || data.key);
     
     if(typeof $string !== "string") {
         $string = "" + $string;
-        $(/* this.required(schema) */);
+
+        $required : {
+            this.invalid.push("$key");
+        }
     }
     
     this.$key = $string;
 });
 
-Structs.defineProperty("number", function(schema, $key) {
-    var $number = $(/* this.value(schema.from || schema.key) */);
+Structs.defineProperty("number", function(data) {
+    var $number = $(this.value(data.from || data.key));
     
     if(typeof $number !== "number") {
         $number = $number|0;
         
-        $(/* this.required(schema) */);
+        $required : {
+            this.invalid.push("$key");
+        }
     }
     
     this.$key = $number;
 });
 
-Structs.defineProperty("date", function($key, $value) {
-    var $date = $(/* this.value(schema.from || schema.key) */),
+Structs.defineProperty("date", function(data) {
+    var $date = $(this.value(data.from || data.key)),
         $date = Date.parse($date);
 
     if(isNaN($date)) {
-        $(/* this.required(schema) */);
+        $required : {
+            this.invalid.push("$key");
+        }
     }
 
     this.$key = new Date($date);
-});
+});*/
 
 var Thing = Structs.defineStruct("Thing", {
     greeting : { type : "string" },
@@ -42,7 +68,7 @@ var Thing = Structs.defineStruct("Thing", {
     sup      : { type : "string", from : "sub.sup" }
 });
 
-var thing = Structs.create("Thing", {
+/*var thing = Structs.create("Thing", {
     greeting : "hello",
     id       : "123",
     created  : "01-012014",
@@ -53,4 +79,4 @@ var thing = Structs.create("Thing", {
 
 console.log(Thing);
 console.log(thing);
-console.log(thing.invalid);
+console.log(thing.invalid);*/
