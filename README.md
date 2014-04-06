@@ -36,15 +36,27 @@ var things = [ new Thing({ id : "1" }), new Thing({ id : 1 }) ];
 
 ## Meta-syntax
 
-Structor.js recycles some rarely used (but still valid) javascript syntax. Meta-functions are functions that contain this syntax and are passed in to `structor.compile(fn)`. There are three supported meta-syntax styles supported for replacement, all of them require a preceeding `$`.
+Structor.js recycles some rarely used (but still valid) javascript syntax. Meta-functions are functions that contain this syntax and are passed in to `structor.compile(fn)`. There are three meta-syntax forms supported for substitutions, all of them require a preceeding `$`.
 
-The simple style looks like this: `$prop`. When this is encountered it will be replaced by the value of the same named property on the data object provided to the meta-function.
+The simple form looks like this: `$prop` and gets replaced by the value of the same named property on the data object provided to the meta-function template.
+### Simple Replacements
 ```javascript
-var metaTpl = Structs.compile(function(data){
-  return data.$foo;
+var metaTpl = Structs.compile(function(){
+    return this.$foo;
 });
 
-var metaFn = new Function(["data"], metaTpl({ foo : "bar" }));
+var metaFn = new Function(metaTpl({ foo : "bar" }));
 
-console.log(metaFn({ bar : "baz" })); // logs baz
+console.log(metaFn.call({ bar : "baz" })); // logs baz
+```
+Beyond the simple case are meta-expressions which look like this: `$(...)` and will evaluate the expression within to produce the value to use as the replacement.
+### Expression Replacements
+```javascript
+var metaTpl = Structs.compile(function(){
+    return this.$(data.foo);
+});
+
+var metaFn = new Function(metaTpl({ foo : "bar" }));
+
+console.log(metaFn.call({ bar : "baz" })); // logs baz
 ```
