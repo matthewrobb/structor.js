@@ -5,102 +5,64 @@
 
     // Parser functions
     structor.mixin({
+        PARSE_REGEX : /\$([\d\w_]*)(?:\s*(:)\s*(?={))?/,
+
+        // Parses the buffer for so long as it contains anything that matches
+        // Calls the proc function with any matches
+        PARSE : function(raw, proc, ctx) {
+            var buffer = raw,
+                result = "",
+                cursor;
+
+            for(;;) {
+                buffer.replace(structor.PARSE_REGEX, function(raw) {
+                    var args = Array.prototype.slice.call(arguments, 1),
+                        full = args.pop(),
+                        pos = args.pop();
+                    
+                    result += full.substr(0, pos);
+                    buffer = full.substr(pos + raw.length);
+                    cursor = args;
+                });
+                
+                if(cursor) {
+                    cursor.push(buffer, result);
+                    buffer = proc.apply(ctx || this, cursor);
+                    cursor = null;
+                } else {
+                    result += buffer;
+                    break;
+                }
+            }
+            
+            return result;
+        },
 
         // Parses contents between two delineating chars
-        PARSE_BETWEEN : function(src, openChar, closeChar, compile) {
+        PARSE_BETWEEN : function(src, openChar, closeChar) {
             var pattern = new RegExp("(?=[" + openChar[0] + closeChar[0] + "])"),
+                chunks = src.split(pattern),
                 open = close = 0,
-                result = extra = "",
-                done = false;
+                result = "";
             
-            src.split(pattern).forEach(function(chunk) {
-                if(done) {
-                    extra += chunk;
-                } else if(chunk[0] === openChar) {
+            chunks.some(function(chunk, idx) {
+                if(chunk[0] === openChar) {
                     open += 1;
                     result += chunk;
                 } else if(chunk[0] === closeChar) {
                     close += 1;
                     
                     if(open === close){
-                        done = true;
                         result += closeChar;
-                        extra += chunk.slice(1);
+                        src = chunk.slice(1) + chunks.slice(idx);
+                        return true;
                     } else {
                         result += chunk;   
                     }
                 }
             });
             
-            return (compile ? compile.call(this, result) : result || "") + extra;
-        },
-
-        // Parses out identifier syntax
-        PARSE_IDENT : function() {
-            var ctx   = this,
-                regex = new RegExp([
-                    /((?:function(?=\s+))?\s*)/.source,
-                    /(\$([\d\w_]+)(?!\s*:\s*))/.source
-                ].join(""), "g");
-
-            ctx.result = ctx.result.replace(/((^[^]*)\$([\d\w_]+)([^]*$))/g, function(_, full, before, ident, after, pos, raw) {
-                console.log(full.length + ":" + raw.length + ":" + _.length + ":" + (before.length + ident.length + after.length));
-
-
-
-                //followed by a :
-                    // BLOCK
-
-                // followed by a (
-                    // NOT preceded by a function
-                        // EXPR
-
-                // IDENT
-
-                return (before + ident + after) + "$hi";
-
-
-                /*if(!/^function/.test(fn) && raw.substr(pos+_.length).trim()[0] === "(") {
-                    return _;
-                }*/
-
-                //return ctx.COMPILE_IDENT(ident) || full;
-            });
-
-            return ctx;
-        },
-
-        // Parses out block syntax
-        PARSE_BLOCK : function() {
-            var ctx = this;
-
-            ctx.result = ctx.result.replace(/(\$([\d\w_]+)\s*:\s*(\{[^]*\}))/g, function(_, match, label, raw) {
-                return ctx.PARSE_BETWEEN(raw, "{", "}", function(block) {
-                    return ctx.COMPILE_BLOCK(label, block.replace(/^\{|\}$/g, "")) || match;
-                });
-            });
-
-            return ctx;
-        },
-
-        // Parses out expression syntax
-        PARSE_EXPR : function() {
-            var ctx = this;
-
-            ctx.result = ctx.result.replace(/(\$([\d\w_]+)?(\([^]*\)))/g, function(_, match, label, expr, pos, raw) {
-                /*if(!/^function/.test(fn) && raw.substr(pos+_.length).trim()[0] === "(") {
-                    return _;
-                }*/
-                if(/function\s*[\d\w_]*\s*$/.test(raw.substr(0, pos))) {
-                    console.log(_)
-                    return match;
-                }
-                return ctx.PARSE_BETWEEN(expr, "(", ")", function(expr) {
-                    return ctx.COMPILE_EXPR(label, expr.replace(/^\(|\)$/g, "")) || match;
-                });
-            });
-
-            return ctx;
+            return result || "";
         }
     });
 
@@ -109,75 +71,56 @@
     structor.mixin({
 
         // Compiles identifier meta-syntax
-        COMPILE_IDENT : function(ident) {
-            return this.data[ident];
+        COMPILE_IDENT : function(options, data, label) {
+            return data[label] || label;
         },
 
         // Compiles block meta-syntax
-        COMPILE_BLOCK : function(label, block) {
-            var partial = bind(this.template(block, this.options), this, this.data),
-                helper  = this.options.helpers[label];
+        COMPILE_BLOCK : function(options, data, label, partial) {
+            var helper = options.helpers[label];
 
-            return helper ? helper(partial) : partial();
+            return helper ? helper(partial, data, options) : partial;
         },
 
         // Compiles expression meta-syntax
-        COMPILE_EXPR : function(label, expr) {
-            var evaluate = bind(new Function([ this.options.data_ident ], "return " + expr), this, this.data),
-                helper   = this.options.helpers[label];
+        COMPILE_EXPR : function(options, data, label, partial) {
+            var evaluate = new Function([ options.data_ident ], "return " + partial),
+                helper   = options.helpers[label];
 
-            return helper ? helper.call(this, evaluate) : evaluate();
+            return helper ? helper(evaluate(data), data, options) : evaluate();
         },
 
         // Bound-function factory for creating template functions
-        COMPILE : function(data) {
-            var ctx = this,
-                result;
+        COMPILE : function(source, options, data) {
+            data || (data = {});
 
-            ctx.data   = data;
-            ctx.result = ctx.source;
+            return this.PARSE(source, function proc(label, isBlock, buffer, result) {
+                var type = isBlock ? "BLOCK" : "IDENT",
+                    partial;
 
-            //result = ctx//.PARSE_BLOCK()
-                        //.PARSE_EXPR()
-                        //.PARSE_IDENT()
-                        //.result;
+                if(!isBlock && buffer[0] === "(" && !/function\s*$/.test(result)) {
+                    type = "EXPR";
+                }
 
-            function parse(raw, regex, proc) {
-                var result = raw,
-                    match;
+                if(type === "BLOCK" || type === "EXPR") {
+                    partial = this.PARSE_BETWEEN(buffer, isBlock ? "{" : "(", isBlock ? "}" : ")");
+                    buffer = buffer.slice(partial.length);
+                    partial = this.PARSE(partial.slice(1, partial.length - 1), proc);
+                }
 
-                while(match = result.search())
-
-            }
-
-            var pat = /\$([\d\w_]+)/g;
-
-            parse(ctx.source, pat, function() {
-                console.log(arguments);
-            })
-
-            ctx.result = ctx.data = undefined;
-
-            return result;
+                partial = this["COMPILE_" + type](options, data, label, partial);
+                
+                return partial + buffer;
+            });
         },
 
         // Takes in a string and options and returns a callable template function
-        template : function(tpl, options) {
-            var ctx = Object.create(this);
-
-            options || (options = {});
-
-            options.helpers || (options.helpers = this.HELPER_REGISTRY || {});
+        template : function(source, options) {
+            options            || (options = {});
+            options.helpers    || (options.helpers = this.HELPER_REGISTRY || {});
             options.data_ident || (options.data_ident = this.DATA_IDENT || "data");
 
-            ctx.mixin({
-                options  : options,
-                source   : tpl,
-                result   : undefined,
-                data     : undefined
-            });
-
-            return bind(this.COMPILE, ctx);
+            return bind(this.COMPILE, this, source || "", options);
         },
 
         //
@@ -195,10 +138,23 @@
         STRUCT_TYPES    : {},
         PROPERTY_TYPES  : {},
         HELPER_REGISTRY : {},
-        DATA_IDENTIFIER : "data",
+        DATA_IDENT      : "data",
 
-        //
-        CTOR_TEMPLATE : structor.compile(function(data) {
+        // Creates a new structor sandbox and mixes in any extensions
+        extend : function(extension) {
+            var ns = Object.create(this);
+
+            extension || (extension = {});
+
+            extension.STRUCT_TYPES    = Object.create(this.STRUCT_TYPES);
+            extension.PROPERTY_TYPES  = Object.create(this.PROPERTY_TYPES);
+            extension.HELPER_REGISTRY = Object.create(this.HELPER_REGISTRY);
+
+            return ns.mixin(extension);
+        },
+
+        // Template used to wrap new Struct types
+        CONSTRUCT_TEMPLATE : structor.compile(function(data) {
             function $name($args) {
                 var undefined;
 
@@ -212,23 +168,6 @@
             
             return $name;
         }),
-
-        //
-        extend : function(extension) {
-            var ns = Object.create(this);
-
-            ns.STRUCT_TYPES    = Object.create(this.STRUCT_TYPES);
-            ns.PROPERTY_TYPES  = Object.create(this.PROPERTY_TYPES);
-            ns.HELPER_REGISTRY = Object.create(this.HELPER_REGISTRY);
-
-            return extension ? ns.mixin(extension) : ns;
-        },
-
-        //
-        create : function(type, data) {
-            var struct = this.STRUCT_TYPES[type];
-            return (struct && new struct(data)) || undefined;
-        },
 
         //
         defineStruct : function(name, schema) {
@@ -247,28 +186,29 @@
             }
 
             //
-            src = this.CTOR_TEMPLATE({
+            src = this.CONSTRUCT_TEMPLATE({
                 name  : name,
-                args  : this.DATA_IDENTIFIER,
+                args  : this.DATA_IDENT,
                 body  : lines.join("")
             });
-//console.log(src)
+
             //
             return this.STRUCT_TYPES[name] = (new Function(src))();
+        },
+
+        //
+        create : function(type, data) {
+            var struct = this.STRUCT_TYPES[type];
+            return (struct && new struct(data)) || undefined;
         }
     });
 
 
-    // Typed-Property helpers
+    // Typed-Properties
     structor.mixin({
         //
         registerHelper : function(label, fn) {
             this.HELPER_REGISTRY[label] = fn;
-        },
-
-        //
-        value : function(raw) {
-
         },
         
         //

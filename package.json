@@ -1,10 +1,13 @@
 {
   "name": "structor.js",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Generates super fast type constructors from a schema",
   "main": "structor.js",
+  "devDependencies" : {
+
+  },
   "scripts": {
-    "test": "node ./test.js"
+    "test": "node node_modules/mocha/bin/mocha"
   },
   "repository": {
     "type": "git",
