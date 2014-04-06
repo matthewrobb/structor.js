@@ -4,7 +4,7 @@
   "description": "Generates super fast type constructors from a schema",
   "main": "structor.js",
   "devDependencies" : {
-
+    "mocha" : ""
   },
   "scripts": {
     "test": "node node_modules/mocha/bin/mocha"
