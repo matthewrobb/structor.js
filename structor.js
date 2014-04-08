@@ -1,5 +1,19 @@
 (function(structor) {
 
+    // Setup constants
+    var undefined,
+        IDENT   = "IDENT",
+        EXPR    = "EXPR",
+        BLOCK   = "BLOCK",
+        COMPILE = "COMPILE_",
+        RETURN  = "return ",
+        DATA    = "data",
+        META    = "schema",
+        EMPTY   = "";
+
+    // Local shortcuts
+    var slice = Function.prototype.call.bind(Array.prototype.slice);
+
     // Utilities (at bottom)
     structor.mixin = mixin
 
@@ -17,7 +31,7 @@
             for(;;) {
                 // Search the buffer for a meta-label
                 buffer.replace(structor.PARSE_REGEX, function(raw) {
-                    var args = Array.prototype.slice.call(arguments, 1),
+                    var args = slice(arguments, 1),
                         full = args.pop(),
                         pos = args.pop();
                     
@@ -98,7 +112,7 @@
 
         // Compiles expression meta-syntax
         COMPILE_EXPR : function(options, data, label, partial) {
-            var result = (new Function([ options.data_ident ], RETURN + partial))(data),
+            var result = (new Function(options.params, RETURN + partial))(data),
                 helper = options.helpers[label];
 
             return helper ? helper(result, data, options) : result;
@@ -141,7 +155,7 @@
         template : function(source, options) {
             options            || (options = {});
             options.helpers    || (options.helpers = this.HELPER_REGISTRY || {});
-            options.data_ident || (options.data_ident = this.DATA_IDENT || DATA);
+            options.params     || (options.params = this.STRUCT_PARAMS || [ DATA ]);
 
             return bind(this.COMPILE, this, source || EMPTY, options);
         },
@@ -161,59 +175,42 @@
         STRUCT_TYPES    : {},
         PROPERTY_TYPES  : {},
         HELPER_REGISTRY : {},
-        DATA_IDENT      : DATA,
 
         // Creates a new structor sandbox and mixes in any extensions
-        extend : function(extension) {
+        extend : function(exts) {
             var ns = Object.create(this);
 
-            extension || (extension = {});
+            exts || (exts = {});
 
-            extension.STRUCT_TYPES    = Object.create(this.STRUCT_TYPES);
-            extension.PROPERTY_TYPES  = Object.create(this.PROPERTY_TYPES);
-            extension.HELPER_REGISTRY = Object.create(this.HELPER_REGISTRY);
+            exts.STRUCT_TYPES    = Object.create(this.STRUCT_TYPES);
+            exts.PROPERTY_TYPES  = Object.create(this.PROPERTY_TYPES);
+            exts.HELPER_REGISTRY = Object.create(this.HELPER_REGISTRY);
 
-            return ns.mixin(extension);
+            return ns.mixin(exts);
         },
-
-        // Template used to wrap new Struct types
-        CONSTRUCTOR_TEMPLATE : structor.compile(function(data) {
-            function $name($args) {
-                var undefined;
-
-                Object.defineProperty(this, "invalid", {
-                    value    : [],
-                    writable : true
-                });
-                
-                $body
-            }
-            
-            return $name;
-        }),
 
         // Registers a named type with a type-schema
         // Returns a constructor for creation of type
         defineStruct : function(name, schema) {
-            var body = [],
-                fieldTpl,
+            var props = [],
+                propTpl,
                 keyName,
                 src;
             
             // Iterates over all the schema fields and adds them to the body
             for(keyName in schema) {
-                fieldTpl = this.PROPERTY_TYPES[schema[keyName].type];
+                propTpl = this.PROPERTY_TYPES[schema[keyName].type];
 
-                if(fieldTpl) {
-                    body.push(fieldTpl(keyName, schema));
+                if(propTpl) {
+                    props.push(propTpl(keyName, schema));
                 }
             }
 
             // Wraps constructor
-            src = this.CONSTRUCTOR_TEMPLATE({
-                name  : name,
-                args  : this.DATA_IDENT,
-                body  : body.join(EMPTY)
+            src = this.FACTORY_TEMPLATE({
+                name       : name,
+                params     : this.STRUCT_PARAMS.join(),
+                properties : props.join(EMPTY)
             });
 
             // Compiles script and executes to extract the new constructor
@@ -239,7 +236,9 @@
         // Takes in a type name and a meta-function
         // Returns a template for including this type on struct properties
         defineProperty : function(name, fn) {
-            var tpl = this.compile(fn);
+            var tpl = this.compile(fn, {
+                params : this.META_PARAMS.join()
+            });
 
             this.PROPERTY_TYPES[name] = function(key, def) {
                 var schema = def[key];
@@ -251,52 +250,65 @@
             };
 
             return this.PROPERTY_TYPES[name];
+        },
+
+        setFactoryTemplate : function(fn, options) {
+            this.FACTORY_TEMPLATE = this.compile(fn, options);
+        },
+
+        setStructParams : function() {
+            this.STRUCT_PARAMS = slice(arguments);
+        },
+
+        setMetaParams : function() {
+            this.META_PARAMS = slice(arguments);
         }
 
+    });
+
+    // Set up template defaults
+    structor.setStructParams(DATA);
+    structor.setMetaParams(META);
+    structor.setFactoryTemplate(function() {
+        function $name($params) {
+            $properties;
+        }
+        
+        return $name;
     });
 
     /*
      * Utils
      */
-    
-    // Setup constants
-    var undefined,
-        IDENT   = "IDENT",
-        EXPR    = "EXPR",
-        BLOCK   = "BLOCK",
-        COMPILE = "COMPILE_",
-        RETURN  = "return ",
-        DATA    = "data",
-        EMPTY   = "";
 
     // Function bind with left side arguments
     function bind(f, c) {
-        var xargs = arguments.length > 2 ?
-                Array.prototype.slice.call(arguments, 2) : null;
+        var xargs = arguments.length > 2 ? slice(arguments, 2) : null;
+
         return function() {
             var fn = typeof f === "string" ? c[f] : f,
-                args = (xargs) ?
-                    xargs.concat(Array.prototype.slice.call(arguments, 0)) : arguments;
+                args = (xargs) ? xargs.concat(slice(arguments, 0)) : arguments;
+
             return fn.apply(c || fn, args);
         };
     }
 
     // Function bind with right side arguments
     function rbind(f, c) {
-        var xargs = arguments.length > 2 ?
-            Array.prototype.slice.call(arguments, 2) : null;
+        var xargs = arguments.length > 2 ? slice(arguments, 2) : null;
+
         return function() {
             var fn = typeof f === "string" ? c[f] : f,
-                args = (xargs) ?
-                    Array.prototype.slice.call(arguments, 0).concat(xargs) : arguments;
+                args = (xargs) ? slice(arguments, 0).concat(xargs) : arguments;
+
             return fn.apply(c || fn, args);
         };
     };
 
     // Define own properties from r onto s
     function mixin(r, s) {
-        var target = arguments.length === 2 ? r : this,
-            source = arguments.length === 2 ? s : r,
+        var source = s,
+            target = arguments.length === 1 ? (source = r) && this : r,
             name, desc;
 
         if(source) for(name in source) {

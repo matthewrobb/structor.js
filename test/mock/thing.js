@@ -1,5 +1,18 @@
-var Structs = require("../../structor").extend({
-    DATA_IDENT : "schema"
+var Structs = require("../../structor").extend();
+
+Structs.setFactoryTemplate(function() {
+
+    return function $name(data) {
+        var undefined;
+
+        Object.defineProperty(this, "invalid", {
+            value    : [],
+            writable : true
+        });
+        
+        $properties;
+    }
+
 });
 
 Structs.registerHelper("required", function(partial, schema, options) {
@@ -13,7 +26,7 @@ Structs.registerHelper("value", function(partial, schema, options) {
         prev.push(next);
         value.push(prev.join("."));
         return prev;
-    }, [ options.data_ident ]);
+    }, [ "data" ]);
     
     return "((" + value.join(" && ") + ") || undefined)";
 });
@@ -59,7 +72,7 @@ Structs.defineProperty("date", function(schema) {
     this.$key = new Date($date);
 });
 
-module.exports = Structs.defineStruct("Thing", {
+var Thing = module.exports = Structs.defineStruct("Thing", {
     greeting : { type : "string" },
     id       : { type : "number" },
     guid     : { type : "string", required : true },
