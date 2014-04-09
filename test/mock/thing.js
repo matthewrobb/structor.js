@@ -1,6 +1,6 @@
 var Structs = require("../../structor").extend();
 
-Structs.setFactoryTemplate(function() {
+/*Structs.setFactoryTemplate(function() {
 
     return function $name(data) {
         var undefined;
@@ -13,16 +13,18 @@ Structs.setFactoryTemplate(function() {
         $properties;
     }
 
+});*/
+
+Structs.registerHelper("required", function(schema, partial) {
+    return "required" in schema && schema.required ? partial(schema) : "";
 });
 
-Structs.registerHelper("required", function(partial, schema, options) {
-    return "required" in schema && schema.required ? partial : "";
-});
-
-Structs.registerHelper("value", function(partial, schema, options) {
+Structs.registerHelper("value", function(schema, partial) {
     var value = [];
+
+    console.log(arguments)
     
-    partial.split(".").reduce(function(prev, next) {
+    partial(schema).split(".").reduce(function(prev, next) {
         prev.push(next);
         value.push(prev.join("."));
         return prev;

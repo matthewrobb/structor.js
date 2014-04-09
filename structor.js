@@ -99,27 +99,38 @@
     structor.mixin({
 
         // Compiles identifier meta-syntax
-        COMPILE_IDENT : function(options, data, label) {
+        COMPILE_IDENT : function(data, label) {
             return data[label] || label;
         },
 
         // Compiles block meta-syntax
-        COMPILE_BLOCK : function(options, data, label, partial) {
-            var helper = options.helpers[label];
+        COMPILE_BLOCK : function(data, label, partial) {
+            var partTpl = this.template(partial, this.options),
+                helper  = this.options.helpers[label];
 
-            return helper ? helper(partial, data, options) : partial;
+            return helper ? helper(data, partTpl) : partTpl(data);
         },
 
         // Compiles expression meta-syntax
-        COMPILE_EXPR : function(options, data, label, partial) {
-            var result = (new Function(options.params, RETURN + partial))(data),
-                helper = options.helpers[label];
+        COMPILE_EXPR : function(data, label, partial) {
+            var partTpl = (new Function(this.options.params, "return [" + partial + "];")),
+                helper  = this.options.helpers[label],
+                result;
 
-            return helper ? helper(result, data, options) : result;
+            if(helper) {
+                result = helper.apply(null, [ data ].concat(partTpl.call(this, data)));
+            } else {
+                result = partTpl.apply(null, [ data ]);
+            }
+console.log(result)
+            return result;
         },
 
         // Bound-function factory for creating template functions
-        COMPILE : function(source, options, data) {
+        COMPILE : function(data) {
+            var source  = this.source || "",
+                options = this.options || {};
+
             data || (data = {});
 
             // Aggressively parse the source for meta-labels 
@@ -144,7 +155,7 @@
                 }
 
                 // Pass the label and partial through the syntax-type compiler
-                partial = this[COMPILE + type](options, data, label, partial);
+                partial = this[COMPILE + type](data, label, partial);
                 
                 // Return the new buffer
                 return partial + buffer;
@@ -153,11 +164,16 @@
 
         // Takes in a string and options and returns a callable template function
         template : function(source, options) {
+            var ctx = Object.create(this);
+
             options            || (options = {});
             options.helpers    || (options.helpers = this.HELPER_REGISTRY || {});
             options.params     || (options.params = this.STRUCT_PARAMS || [ DATA ]);
 
-            return bind(this.COMPILE, this, source || EMPTY, options);
+            ctx.source  = source;
+            ctx.options = options;
+
+            return ctx.COMPILE.bind(ctx);
         },
 
         // Takes in a function containing meta-syntax and compiles it into a template
@@ -269,13 +285,31 @@
     // Set up template defaults
     structor.setStructParams(DATA);
     structor.setMetaParams(META);
+
+    //structor.registerHelper()
+
     structor.setFactoryTemplate(function() {
+
+        return function $name(data) {
+            var undefined;
+
+            Object.defineProperty(this, "invalid", {
+                value    : [],
+                writable : true
+            });
+            
+            $properties;
+        }
+
+    });
+
+/*    structor.setFactoryTemplate(function() {
         function $name($params) {
             $properties;
         }
         
         return $name;
-    });
+    });*/
 
     /*
      * Utils
