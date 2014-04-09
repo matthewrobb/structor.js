@@ -1,4 +1,4 @@
-var Structs = require("../../structor").extend();
+var Structs = require("../../structor");
 
 /*Structs.setFactoryTemplate(function() {
 
@@ -19,12 +19,10 @@ Structs.registerHelper("required", function(schema, partial) {
     return "required" in schema && schema.required ? partial(schema) : "";
 });
 
-Structs.registerHelper("value", function(schema, partial) {
+/*Structs.registerHelper("value", function(schema, partial) {
     var value = [];
-
-    console.log(arguments)
     
-    partial(schema).split(".").reduce(function(prev, next) {
+    partial.split(".").reduce(function(prev, next) {
         prev.push(next);
         value.push(prev.join("."));
         return prev;
@@ -72,7 +70,7 @@ Structs.defineProperty("date", function(schema) {
     }
 
     this.$key = new Date($date);
-});
+});*/
 
 var Thing = module.exports = Structs.defineStruct("Thing", {
     greeting : { type : "string" },
@@ -81,3 +79,5 @@ var Thing = module.exports = Structs.defineStruct("Thing", {
     created  : { type : "date", required : true },
     sup      : { type : "string", from : "sub.sup" }
 });
+
+console.log(Thing.toString())

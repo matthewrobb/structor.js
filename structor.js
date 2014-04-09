@@ -8,8 +8,7 @@
         COMPILE = "COMPILE_",
         RETURN  = "return ",
         DATA    = "data",
-        META    = "schema",
-        EMPTY   = "";
+        META    = "schema";
 
     // Local shortcuts
     var slice = Function.prototype.call.bind(Array.prototype.slice);
@@ -25,7 +24,7 @@
         // Calls the proc function with any matches
         PARSE : function(raw, proc, ctx) {
             var buffer = raw,
-                result = EMPTY,
+                result = "",
                 cursor;
 
             for(;;) {
@@ -71,7 +70,7 @@
             var pattern = new RegExp("(?=[" + openChar[0] + closeChar[0] + "])"),
                 chunks = src.split(pattern),
                 open = close = 0,
-                result = EMPTY;
+                result = "";
             
             chunks.some(function(chunk, idx) {
                 if(chunk[0] === openChar) {
@@ -90,7 +89,7 @@
                 }
             });
             
-            return result || EMPTY;
+            return result || "";
         }
     });
 
@@ -106,9 +105,41 @@
         // Compiles block meta-syntax
         COMPILE_BLOCK : function(data, label, partial) {
             var partTpl = this.template(partial, this.options),
-                helper  = this.options.helpers[label];
+                helper = this.options.helpers[label],
+                result = "",
+                subData;
 
-            return helper ? helper(data, partTpl) : partTpl(data);
+            if(helper) {
+                result += helper.call(this, data, partTpl);
+            } else if(typeof data[label] == "object") {
+                subData = Object.create(data);
+                subData.context = data[label];
+
+                if(!Array.isArray(subData.context)) {
+                    for(var key in subData.context) {
+                        subData.value = subData.context[key];
+                        subData.key = key;
+
+                        //console.log(subData)
+
+                        result += partTpl.call(this, subData);
+                    }
+                }
+
+
+                /*data[label].forEach(function(value, key) {
+                    iter.value = item;
+                    iter.index = idx;
+
+                    result += partTpl.call(this, iter);
+                }, this);*/
+            } else if(data[label]) {
+                result += partTpl.call(this, data);
+            }
+
+            return result;
+
+            //return helper ? helper.call(this, data, partTpl) : partTpl.call(this, data);
         },
 
         // Compiles expression meta-syntax
@@ -118,11 +149,11 @@
                 result;
 
             if(helper) {
-                result = helper.apply(null, [ data ].concat(partTpl.call(this, data)));
+                result = helper.apply(this, [ data ].concat(partTpl.call(this, data)));
             } else {
-                result = partTpl.apply(null, [ data ]);
+                result = partTpl.call(this, data);
             }
-console.log(result)
+
             return result;
         },
 
@@ -139,8 +170,29 @@ console.log(result)
                     partial;
 
                 // Check to see if we've found a meta-expression or a meta-identifier
-                if(type == IDENT && buffer[0] == "(" && !/function\s*$/.test(result)) {
-                    type = EXPR;
+                while(type == IDENT) {
+                    if(buffer[0] == "(" && !/function\s*$/.test(result)) {
+                        type = EXPR;
+                        break;
+                    }
+
+                    if(buffer[0] == ".") {
+                        buffer.replace(/(\.[\d\w_]*)/g, function(match, part, index) {
+                            if(index === 0) {
+                                partial = "";
+                            }
+
+                            if(partial === undefined) {
+                                return match;
+                            }
+
+                            partial += part;
+
+                            return "";
+                        })
+                    }
+
+                    break;
                 }
 
                 if(type == BLOCK || type == EXPR) {
@@ -150,8 +202,13 @@ console.log(result)
                     // Remove the partial from the remaining buffer
                     buffer = buffer.slice(partial.length);
 
-                    // Recursively parse the subsequence
-                    partial = this.PARSE(partial.slice(1, partial.length - 1), proc);
+                    // Remove braces
+                    partial = partial.slice(1, -1);
+                }
+
+                // Recursively parse expression sub-template
+                if(type == EXPR) {
+                    partial = this.PARSE(partial, proc);
                 }
 
                 // Pass the label and partial through the syntax-type compiler
@@ -188,6 +245,7 @@ console.log(result)
 
     // Typed Structures
     structor.mixin({
+        VALUE_TYPES     : {},
         STRUCT_TYPES    : {},
         PROPERTY_TYPES  : {},
         HELPER_REGISTRY : {},
@@ -198,6 +256,7 @@ console.log(result)
 
             exts || (exts = {});
 
+            exts.VALUE_TYPES     = Object.create(this.VALUE_TYPES);
             exts.STRUCT_TYPES    = Object.create(this.STRUCT_TYPES);
             exts.PROPERTY_TYPES  = Object.create(this.PROPERTY_TYPES);
             exts.HELPER_REGISTRY = Object.create(this.HELPER_REGISTRY);
@@ -205,28 +264,38 @@ console.log(result)
             return ns.mixin(exts);
         },
 
+        // Define primitive value types
+        defineValueType : function(name, fn) {
+            var tpl = this.compile(fn, {
+                params : this.META_PARAMS.join()
+            });
+
+            this.VALUE_TYPES[name] = function(name, def) {
+                var schema = Object.create(def);
+                
+                schema.from    = schema.name || name;
+                schema[name] = "_" + schema.name;
+
+                return tpl(schema);
+            };
+
+            return this.VALUE_TYPES[name];
+        },
+
         // Registers a named type with a type-schema
         // Returns a constructor for creation of type
+        // TODO: rename to defineStructType
         defineStruct : function(name, schema) {
             var props = [],
                 propTpl,
                 keyName,
                 src;
-            
-            // Iterates over all the schema fields and adds them to the body
-            for(keyName in schema) {
-                propTpl = this.PROPERTY_TYPES[schema[keyName].type];
-
-                if(propTpl) {
-                    props.push(propTpl(keyName, schema));
-                }
-            }
 
             // Wraps constructor
             src = this.FACTORY_TEMPLATE({
                 name       : name,
                 params     : this.STRUCT_PARAMS.join(),
-                properties : props.join(EMPTY)
+                properties : schema
             });
 
             // Compiles script and executes to extract the new constructor
@@ -269,6 +338,9 @@ console.log(result)
         },
 
         setFactoryTemplate : function(fn, options) {
+            options        || (options = {});
+            options.params || (options.params = "schema");
+
             this.FACTORY_TEMPLATE = this.compile(fn, options);
         },
 
@@ -286,7 +358,37 @@ console.log(result)
     structor.setStructParams(DATA);
     structor.setMetaParams(META);
 
-    //structor.registerHelper()
+    /*Structs.registerHelper("from", function(schema) {
+        var from = schemavalue = [];
+        
+        partial.split(".").reduce(function(prev, next) {
+            prev.push(next);
+            value.push(prev.join("."));
+            return prev;
+        }, [ "data" ]);
+        
+        return "((" + value.join(" && ") + ") || undefined)";
+    });*/
+
+    structor.registerHelper("createValue", function(schema, name, value) {
+        var valueTpl = this.VALUE_TYPES[value.type],
+            result = "";
+
+        if(valueTpl) {
+            //result = valueTpl(name, value);
+        }
+
+        return result;
+    });
+
+
+    structor.defineValueType("string", function(schema) {
+        var $string = $from;
+        
+        if(typeof $string !== "string") {
+            $string = "" + $string;
+        }
+    });
 
     structor.setFactoryTemplate(function() {
 
@@ -298,7 +400,9 @@ console.log(result)
                 writable : true
             });
             
-            $properties;
+            $properties : {
+                $createValue($value.type.blah, $key, $key);
+            }
         }
 
     });
@@ -314,6 +418,10 @@ console.log(result)
     /*
      * Utils
      */
+
+    function isLineTerminator(ch) {
+        return (ch === 0x0A) || (ch === 0x0D) || (ch === 0x2028) || (ch === 0x2029);
+    }
 
     // Function bind with left side arguments
     function bind(f, c) {
