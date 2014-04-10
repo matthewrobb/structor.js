@@ -21,49 +21,39 @@
     structor.mixin({
         PARSE_REGEX : /\$([\d\w_]*)(?:\s*(:)\s*(?={))?/,
 
+        PARSE_MATCHER : createPatternMatcher({
+            label   : /\$([\d\w_]*)/,
+            isBlock : /(?:\s*(:)\s*(?={))?/
+        }),
+
         // Parses the buffer for so long as it contains anything that matches
         // Calls the proc function with any matches
         PARSE : function(raw, proc, ctx) {
-            var buffer = raw,
-                result = EMPTY,
-                cursor;
+            var parser = {
+                context : ctx || this,
+                buffer  : raw,
+                result  : "",
+                match   : undefined
+            };
 
-            for(;;) {
-                // Search the buffer for a meta-label
-                buffer.replace(structor.PARSE_REGEX, function(raw) {
-                    var args = slice(arguments, 1),
-                        full = args.pop(),
-                        pos = args.pop();
-                    
-                    // Add everything that came before the meta-label to the output
-                    result += full.substr(0, pos);
+            // Search the buffer for all meta-label
+            while(parser.match = this.PARSE_MATCHER(parser.buffer)) {
+                // Add everything that came before the meta-label to the output
+                parser.result += parser.match.input.substr(0, parser.match.index);
 
-                    // Adjust the buffer to be everything after the meta-label
-                    buffer = full.substr(pos + raw.length);
-
-                    // Set the cursor to the matches from this replace
-                    cursor = args;
-                });
+                // Adjust the buffer to be everything after the meta-label
+                parser.buffer = parser.match.input.substr(parser.match.index + parser.match.full.length);
                 
-                if(cursor) {
-                    // Add the buffer and result to the cursor
-                    cursor.push(buffer, result);
-
-                    // Process the cursor and set the buffer from the result
-                    // NOTE: processor is exected to return the entire new buffer
-                    buffer = proc.apply(ctx || this, cursor);
-
-                    // Unset the cursor
-                    cursor = undefined;
-                } else {
-                    // Since no matches were found add the remaining buffer to the result
-                    // and break out of the loop
-                    result += buffer;
-                    break;
-                }
+                // Process the match and append it to the result
+                parser.result += proc.call(parser.context, parser) || "";
             }
-            
-            return result;
+
+            // If anything remains in the buffer append it to the result
+            if(parser.buffer) {
+                parser.result += parser.buffer;
+            }
+
+            return parser.result;
         },
 
         // Parses contents between two delineating chars
@@ -120,24 +110,28 @@
 
         // Bound-function factory for creating template functions
         COMPILE : function(source, options, data) {
+            var parser;
+
             data || (data = {});
 
-            // Aggressively parse the source for meta-labels 
-            return this.PARSE(source, function proc(label, isBlock, buffer, result) {
-                var type = isBlock ? BLOCK : IDENT,
+            // Aggressively parse the source for meta-labels
+            return this.PARSE(source, function proc(parser) {
+                var label   = parser.match.label,
+                    isBlock = parser.match.isBlock,
+                    type    = isBlock ? BLOCK : IDENT,
                     partial;
 
                 // Check to see if we've found a meta-expression or a meta-identifier
-                if(type == IDENT && buffer[0] == "(" && !/function\s*$/.test(result)) {
+                if(type == IDENT && parser.buffer[0] == "(" && !/function\s*$/.test(parser.result)) {
                     type = EXPR;
                 }
 
                 if(type == BLOCK || type == EXPR) {
                     // Parse out the subsequence
-                    partial = this.PARSE_BETWEEN(buffer, isBlock ? "{" : "(", isBlock ? "}" : ")");
+                    partial = this.PARSE_BETWEEN(parser.buffer, isBlock ? "{" : "(", isBlock ? "}" : ")");
 
                     // Remove the partial from the remaining buffer
-                    buffer = buffer.slice(partial.length);
+                    parser.buffer = parser.buffer.slice(partial.length);
 
                     // Recursively parse the subsequence
                     partial = this.PARSE(partial.slice(1, partial.length - 1), proc);
@@ -146,8 +140,8 @@
                 // Pass the label and partial through the syntax-type compiler
                 partial = this[COMPILE + type](options, data, label, partial);
                 
-                // Return the new buffer
-                return partial + buffer;
+                // Return and write to the result
+                return partial;
             });
         },
 
@@ -157,7 +151,7 @@
             options.helpers    || (options.helpers = this.HELPER_REGISTRY || {});
             options.params     || (options.params = this.STRUCT_PARAMS || [ DATA ]);
 
-            return bind(this.COMPILE, this, source || EMPTY, options);
+            return this.COMPILE.bind(this, source || EMPTY, options);
         },
 
         // Takes in a function containing meta-syntax and compiles it into a template
@@ -281,29 +275,27 @@
      * Utils
      */
 
-    // Function bind with left side arguments
-    function bind(f, c) {
-        var xargs = arguments.length > 2 ? slice(arguments, 2) : null;
+    //
+    function createPatternMatcher(map) {
+        var pattern = "",
+            parts   = Object.keys(map);
 
-        return function() {
-            var fn = typeof f === "string" ? c[f] : f,
-                args = (xargs) ? xargs.concat(slice(arguments, 0)) : arguments;
+        parts.forEach(function(key) {
+            pattern += map[key].source;
+        });
 
-            return fn.apply(c || fn, args);
-        };
+        parts.unshift("full");
+
+        return function(str) {
+            var match = str.match(pattern);
+
+            match && parts.forEach(function(key, idx) {
+                match[key] = match[idx];
+            });
+
+            return match;
+        }
     }
-
-    // Function bind with right side arguments
-    function rbind(f, c) {
-        var xargs = arguments.length > 2 ? slice(arguments, 2) : null;
-
-        return function() {
-            var fn = typeof f === "string" ? c[f] : f,
-                args = (xargs) ? slice(arguments, 0).concat(xargs) : arguments;
-
-            return fn.apply(c || fn, args);
-        };
-    };
 
     // Define own properties from r onto s
     function mixin(r, s) {
