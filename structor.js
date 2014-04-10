@@ -12,7 +12,8 @@
         EMPTY   = "";
 
     // Local shortcuts
-    var slice = Function.prototype.call.bind(Array.prototype.slice);
+    var slice = Function.prototype.call.bind(Array.prototype.slice),
+        base  = { mixin : mixin, extend : extend };
 
     // Utilities (at bottom)
     structor.mixin = mixin
@@ -26,24 +27,43 @@
             isBlock : /(?:\s*(:)\s*(?={))?/
         }),
 
+        PARSER : base.extend({
+            context : undefined,
+            buffer  : undefined,
+            result  : undefined,
+            match   : undefined,
+
+            MATCHER : createPatternMatcher({
+                label   : /\$([\d\w_]*)/,
+                isBlock : /(?:\s*(:)\s*(?={))?/
+            }),
+
+            next : function() {
+                var match = this.MATCHER(this.buffer);
+
+                if(match) {
+                    // Add everything that came before the meta-label to the output
+                    this.result += match.input.substr(0, match.index);
+
+                    // Adjust the buffer to be everything after the meta-label
+                    this.buffer = match.input.substr(match.index + match.full.length);
+                }
+
+                return this.match = match;
+            }
+        }),
+
         // Parses the buffer for so long as it contains anything that matches
         // Calls the proc function with any matches
         PARSE : function(raw, proc, ctx) {
-            var parser = {
+            var parser = this.PARSER.extend({
                 context : ctx || this,
                 buffer  : raw,
-                result  : "",
-                match   : undefined
-            };
+                result  : ""
+            });
 
-            // Search the buffer for all meta-label
-            while(parser.match = this.PARSE_MATCHER(parser.buffer)) {
-                // Add everything that came before the meta-label to the output
-                parser.result += parser.match.input.substr(0, parser.match.index);
-
-                // Adjust the buffer to be everything after the meta-label
-                parser.buffer = parser.match.input.substr(parser.match.index + parser.match.full.length);
-                
+            // Search the buffer for all meta-labels
+            while(parser.next()) {
                 // Process the match and append it to the result
                 parser.result += proc.call(parser.context, parser) || "";
             }
@@ -110,8 +130,6 @@
 
         // Bound-function factory for creating template functions
         COMPILE : function(source, options, data) {
-            var parser;
-
             data || (data = {});
 
             // Aggressively parse the source for meta-labels
@@ -310,5 +328,10 @@
 
         return target;
     };
+
+    function extend(props) {
+        var ext = Object.create(this);
+        return mixin(ext, props);
+    }
 
 }( (module && module.exports) || (window.structor = {}) ));
