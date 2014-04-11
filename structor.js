@@ -29,27 +29,41 @@
 
         PARSER : base.extend({
             context : undefined,
-            buffer  : undefined,
+            raw     : undefined,
             result  : undefined,
             match   : undefined,
 
-            MATCHER : createPatternMatcher({
+            MATCH_RAW  : createPatternMatcher({
+                raw : /^([^$]*)/
+            }),
+
+            MATCH_META : createPatternMatcher({
                 label   : /\$([\d\w_]*)/,
                 isBlock : /(?:\s*(:)\s*(?={))?/
             }),
 
-            next : function() {
-                var match = this.MATCHER(this.buffer);
+            next : function(proc) {
+                var match = this.MATCH_RAW(this.raw);
+
+
+
+                console.log();
 
                 if(match) {
+
                     // Add everything that came before the meta-label to the output
                     this.result += match.input.substr(0, match.index);
 
                     // Adjust the buffer to be everything after the meta-label
-                    this.buffer = match.input.substr(match.index + match.full.length);
+                    this.raw = match.input.substr(match.index + match.full.length);
+
+                    this.result += proc.call(this.context, this) || "";
+                } else {
+                    this.result += this.raw;
+                    this.raw = "";
                 }
 
-                return this.match = match;
+                return match;
             }
         }),
 
@@ -58,21 +72,23 @@
         PARSE : function(raw, proc, ctx) {
             var parser = this.PARSER.extend({
                 context : ctx || this,
-                buffer  : raw,
-                result  : ""
+                raw     : raw,
+                result  : "",
+                parts   : []
             });
 
             // Search the buffer for all meta-labels
-            while(parser.next()) {
+            while(parser.raw.length) {
                 // Process the match and append it to the result
-                parser.result += proc.call(parser.context, parser) || "";
+                //parser.result += proc.call(parser.context, parser) || "";
+                parser.next(proc);
             }
 
             // If anything remains in the buffer append it to the result
             if(parser.buffer) {
-                parser.result += parser.buffer;
+                //parser.result += parser.buffer;
             }
-
+            //console.log(/*JSON.stringify(parser.parts, null, 4)*/parser.parts.join(""))
             return parser.result;
         },
 
@@ -140,16 +156,16 @@
                     partial;
 
                 // Check to see if we've found a meta-expression or a meta-identifier
-                if(type == IDENT && parser.buffer[0] == "(" && !/function\s*$/.test(parser.result)) {
+                if(type == IDENT && parser.raw[0] == "(" && !/function\s*$/.test(parser.result)) {
                     type = EXPR;
                 }
 
                 if(type == BLOCK || type == EXPR) {
                     // Parse out the subsequence
-                    partial = this.PARSE_BETWEEN(parser.buffer, isBlock ? "{" : "(", isBlock ? "}" : ")");
+                    partial = this.PARSE_BETWEEN(parser.raw, isBlock ? "{" : "(", isBlock ? "}" : ")");
 
                     // Remove the partial from the remaining buffer
-                    parser.buffer = parser.buffer.slice(partial.length);
+                    parser.raw = parser.raw.slice(partial.length);
 
                     // Recursively parse the subsequence
                     partial = this.PARSE(partial.slice(1, partial.length - 1), proc);
@@ -157,7 +173,7 @@
 
                 // Pass the label and partial through the syntax-type compiler
                 partial = this[COMPILE + type](options, data, label, partial);
-                
+
                 // Return and write to the result
                 return partial;
             });
