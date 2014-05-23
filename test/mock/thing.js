@@ -16,13 +16,13 @@ Structs.setFactoryTemplate(function() {
 });
 
 Structs.registerHelper("required", function(partial, schema, options) {
-    return "required" in schema && schema.required ? partial : "";
+    return "required" in schema && schema.required ? partial(schema) : "";
 });
 
 Structs.registerHelper("value", function(partial, schema, options) {
     var value = [];
     
-    partial.split(".").reduce(function(prev, next) {
+    partial(schema).split(".").reduce(function(prev, next) {
         prev.push(next);
         value.push(prev.join("."));
         return prev;
@@ -73,8 +73,8 @@ Structs.defineProperty("date", function(schema) {
 });
 
 var Thing = module.exports = Structs.defineStruct("Thing", {
-    greeting : { type : "string" },
-    id       : { type : "number" },
+    greeting : "string",
+    id       : "number",
     guid     : { type : "string", required : true },
     created  : { type : "date", required : true },
     sup      : { type : "string", from : "sub.sup" }
