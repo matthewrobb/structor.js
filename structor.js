@@ -105,17 +105,18 @@
 
         // Compiles block meta-syntax
         COMPILE_BLOCK : function(options, data, label, partial) {
-            var helper = options.helpers[label];
+            var result = this.template(partial, options),
+                helper = options.helpers[label];
 
-            return helper ? helper(partial, data, options) : partial;
+            return helper ? helper(result, data, options) : result(data);
         },
 
         // Compiles expression meta-syntax
         COMPILE_EXPR : function(options, data, label, partial) {
-            var result = (new Function(options.params, RETURN + partial))(data),
+            var result = (new Function(options.params, RETURN + partial)),
                 helper = options.helpers[label];
 
-            return helper ? helper(result, data, options) : result;
+            return helper ? helper(result, data, options) : result(data);
         },
 
         // Bound-function factory for creating template functions
@@ -140,7 +141,7 @@
                     buffer = buffer.slice(partial.length);
 
                     // Recursively parse the subsequence
-                    partial = this.PARSE(partial.slice(1, partial.length - 1), proc);
+                    partial = partial.slice(1, partial.length - 1);
                 }
 
                 // Pass the label and partial through the syntax-type compiler
@@ -199,8 +200,12 @@
             
             // Iterates over all the schema fields and adds them to the body
             for(keyName in schema) {
+                if(typeof schema[keyName] === "string") {
+                    schema[keyName] = { type: schema[keyName] };
+                }
+                
                 propTpl = this.PROPERTY_TYPES[schema[keyName].type];
-
+                
                 if(propTpl) {
                     props.push(propTpl(keyName, schema));
                 }

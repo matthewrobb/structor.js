@@ -1,6 +1,6 @@
 {
   "name": "structor.js",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Generates super fast type constructors from a schema",
   "main": "structor.js",
   "devDependencies" : {
