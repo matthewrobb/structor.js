@@ -4,12 +4,12 @@ suite("Structor.js", function(){
     var Thing = require("./mock/thing");
 
     var thing = new Thing({
-        greeting : "hello",
+        greeting : "hello"/*,
         id       : "123",
         created  : "01-012014",
         sub : {
             sup : "heyo"
-        }
+        }*/
     });
 
     test("greeting should be '\"hello\"'", function() {

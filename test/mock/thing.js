@@ -4,18 +4,17 @@ Structs.setFactoryTemplate(function() {
 
     return function $name(data) {
         var undefined;
-
-        Object.defineProperty(this, "invalid", {
-            value    : [],
-            writable : true
-        });
         
         $properties;
     }
 
 });
 
-Structs.registerHelper("required", function(partial, schema, options) {
+Structs.defineProperty("string", function(schema) {
+    var hi;
+});
+
+/*Structs.registerHelper("required", function(partial, schema, options) {
     return "required" in schema && schema.required ? partial : "";
 });
 
@@ -70,12 +69,12 @@ Structs.defineProperty("date", function(schema) {
     }
 
     this.$key = new Date($date);
-});
+});*/
 
 var Thing = module.exports = Structs.defineStruct("Thing", {
-    greeting : { type : "string" },
+    greeting : { type : "string" }/*,
     id       : { type : "number" },
     guid     : { type : "string", required : true },
     created  : { type : "date", required : true },
-    sup      : { type : "string", from : "sub.sup" }
+    sup      : { type : "string", from : "sub.sup" }*/
 });

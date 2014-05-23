@@ -32,24 +32,106 @@
             raw     : undefined,
             result  : undefined,
             match   : undefined,
+            get done() {
+                return this.raw === undefined || !this.raw.length;
+            },
 
             MATCH_RAW  : createPatternMatcher({
-                raw : /^([^$]*)/
+                raw : /^((?:function\s*(?=[^$])|[^$])*)/
             }),
 
             MATCH_META : createPatternMatcher({
+                //isFunc  : /^(?:(function)\s*(?=[$]))?/,
                 label   : /\$([\d\w_]*)/,
                 isBlock : /(?:\s*(:)\s*(?={))?/
             }),
 
+/*
+{
+    type  : "Literal",
+    value : ""
+}
+{
+    type  : "Identifier",
+    name  : ""
+}
+{
+    type  : "Helper",
+    call  : "",
+    block : "",
+    body  : []
+}
+
+            function proc(parser) {
+                var label   = parser.match.label,
+                    isBlock = parser.match.isBlock,
+                    type    = isBlock ? BLOCK : IDENT,
+                    partial;
+
+                // Check to see if we've found a meta-expression or a meta-identifier
+                if(type == IDENT && parser.raw[0] == "(" && !/function\s*$/.test(parser.result)) {
+                    type = EXPR;
+                }
+
+                if(type == BLOCK || type == EXPR) {
+                    // Parse out the subsequence
+                    partial = this.PARSE_BETWEEN(parser.raw, isBlock ? "{" : "(", isBlock ? "}" : ")");
+
+                    // Remove the partial from the remaining buffer
+                    parser.raw = parser.raw.slice(partial.length);
+
+                    // Recursively parse the subsequence
+                    partial = this.PARSE(partial.slice(1, partial.length - 1), proc);
+                }
+
+                // Pass the label and partial through the syntax-type compiler
+                partial = this[COMPILE + type](options, data, label, partial);
+
+                // Return and write to the result
+                return partial;
+            }
+
+*/
+
+
             next : function(proc) {
-                var match = this.MATCH_RAW(this.raw);
+                var match = this.MATCH_RAW(this.raw),
+                    type  = "Literal",
+                    label;
 
+                if(!(match || this.raw)) {
+                    return;
+                } else if(match.raw) {
+                    this.raw = match.input.slice(match.raw.length);
+                    return {
+                        type  : type,
+                        value : match.raw
+                    };
+                }
 
+                match = this.MATCH_META(this.raw);
+                label = match.label;
 
-                console.log();
+                console.log(match)
 
-                if(match) {
+                // Check to see if we've found a meta-expression or a meta-identifier
+                //if(!match.isBlock && this.raw[0] == "(" && !/function\s*$/.test(parser.result)) {
+                //    type = "Expression";
+                //}
+
+                //if (match = this.MATCH_RAW(this.raw)) {
+                    //console.log("_________________");
+                    //console.log(match.input.substr(0, match.full.length - 1));
+                    //this.parts.push(match.input.substr(0, match.full.length - 1));
+                    //console.log("-----------------");
+                    //console.log(match.input.slice(match.full.length));
+                    
+                   // console.log("=================");
+                //} else if(match = this.MATCH_META(this.raw)) {
+                    //console.log(match);
+                //}
+//console.log(match)
+                /*if(match) {
 
                     // Add everything that came before the meta-label to the output
                     this.result += match.input.substr(0, match.index);
@@ -61,7 +143,7 @@
                 } else {
                     this.result += this.raw;
                     this.raw = "";
-                }
+                }*/
 
                 return match;
             }
@@ -78,11 +160,21 @@
             });
 
             // Search the buffer for all meta-labels
-            while(parser.raw.length) {
+            //while(parser.raw.length) {
                 // Process the match and append it to the result
                 //parser.result += proc.call(parser.context, parser) || "";
+                //parser.next(proc);
+            //}
+            var part;
+            for(var i = 0; i < 1; i++) {
+                if(parser.done || !(part = parser.next())) {
+                    break;
+                }
+
                 parser.next(proc);
             }
+
+//console.log(parser);
 
             // If anything remains in the buffer append it to the result
             if(parser.buffer) {
